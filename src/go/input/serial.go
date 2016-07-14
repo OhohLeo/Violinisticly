@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/tarm/serial"
 	"log"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -39,52 +38,46 @@ func AccelerometerSerial(device string, baudrate int) (chan Accelerometer, error
 
 	// Lecture
 	buf := bufio.NewReader(s)
-	valid := regexp.MustCompile(`^[0-9]+-[0-9]+-[0-9]+`)
 
 	go func() {
 
 		for {
-
-			values, err := buf.ReadBytes('\n')
-
+			rcv, err := buf.ReadBytes('\n')
 			if err != nil {
 				return
 			}
 
-			if valid.Match(values) {
+			s := strings.TrimSpace(string(rcv))
 
-				// Retire les '\r\n' finaux
-				values = values[:len(values)-2]
+			values := strings.SplitN(s, "-", 3)
 
-				// Récupération des valeurs X, Y & Z
-				split := strings.SplitN(string(values), "-", 3)
-
-				x, err := strconv.Atoi(split[0])
-				if err != nil {
-					log.Printf("x %+v", err)
-					return
-				}
-
-				y, err := strconv.Atoi(split[1])
-				if err != nil {
-					log.Printf("y %+v", err)
-					return
-				}
-
-				z, err := strconv.Atoi(split[2])
-				if err != nil {
-					log.Printf("z %+v", err)
-					return
-				}
-
-				accelerometer := Accelerometer{
-					X: x,
-					Y: y,
-					Z: z,
-				}
-
-				channel <- accelerometer
+			x, err := strconv.Atoi(values[0])
+			if err != nil {
+				log.Printf("x %+v", err)
+				return
 			}
+
+			y, err := strconv.Atoi(values[1])
+			if err != nil {
+				log.Printf("y %+v", err)
+				return
+			}
+
+			z, err := strconv.Atoi(values[2])
+			if err != nil {
+				log.Printf("z %+v", err)
+				return
+			}
+
+			accelerometer := Accelerometer{
+				X: x,
+				Y: y,
+				Z: z,
+			}
+
+			log.Printf("%+v", accelerometer)
+
+			channel <- accelerometer
 		}
 	}()
 

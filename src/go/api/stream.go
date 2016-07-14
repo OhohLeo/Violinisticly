@@ -3,6 +3,7 @@ package api
 import (
 	//"fmt"
 	"github.com/ant0ine/go-json-rest/rest"
+	"log"
 	"net/http"
 	"ohohleo/accelerometer/input"
 )
@@ -10,10 +11,10 @@ import (
 func NewStream(ch chan input.Accelerometer) error {
 
 	// Mise en place de l'API Stream
-	api_stream := rest.NewApi()
+	apiStream := rest.NewApi()
 
-	api_stream.Use(&rest.AccessLogApacheMiddleware{})
-	api_stream.Use(rest.DefaultDevStack...)
+	apiStream.Use(&rest.AccessLogApacheMiddleware{})
+	apiStream.Use(rest.DefaultDevStack...)
 
 	stream, err := rest.MakeRouter(
 		rest.Get("/accelerometer", Stream(ch)),
@@ -23,9 +24,9 @@ func NewStream(ch chan input.Accelerometer) error {
 		return err
 	}
 
-	api_stream.SetApp(stream)
+	apiStream.SetApp(stream)
 
-	http.Handle("/stream/", http.StripPrefix("/stream", api_stream.MakeHandler()))
+	http.Handle("/stream/", http.StripPrefix("/stream", apiStream.MakeHandler()))
 
 	return nil
 }
@@ -42,6 +43,8 @@ func Stream(ch chan input.Accelerometer) func(w rest.ResponseWriter, r *rest.Req
 		for {
 
 			accelerometer := <-ch
+
+			log.Printf("%+v", accelerometer)
 
 			w.(http.ResponseWriter).Write([]byte("data:" + accelerometer.String() + "\n\n"))
 

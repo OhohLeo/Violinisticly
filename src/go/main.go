@@ -26,6 +26,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Println("HTTP Listening :5000 ...")
+	log.Println("Listening :5000 ...")
 	http.ListenAndServe(":5000", nil)
 }

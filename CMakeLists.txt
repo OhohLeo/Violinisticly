@@ -1,16 +1,13 @@
-project(ACCELEROMETER)
+cmake_minimum_required(VERSION 3.6)
 
-cmake_minimum_required(VERSION 2.6)
+set(CMAKE_TOOLCHAIN_FILE ${CMAKE_SOURCE_DIR}/scripts/arduino/ArduinoToolchain.cmake)
 
-include(${CMAKE_SOURCE_DIR}/scripts/arduino/arduino_uno.cmake)
+project(violin)
 
-set(ARDUINO_SRC
-    ${CMAKE_SOURCE_DIR}/src/arduino/main.cpp
-    ${ARDUINO_SOURCE_FILES}
-)
+set(ARDUINO_SRC ${CMAKE_SOURCE_DIR}/src/arduino/main.cpp)
 
-add_executable(firmware ${ARDUINO_SRC})
-
-add_custom_target(deploy  make
-  COMMAND avr-objcopy -O ihex -R .eeprom firmware firmware.hex
-  COMMAND sudo avrdude -v -c arduino -p ATMEGA328P -P /dev/ttyACM0 -b 115200 -U flash:w:firmware.hex)
+generate_arduino_firmware(test
+    SRCS ${ARDUINO_SRC}
+    PORT  /dev/ttyACM0
+    SERIAL picocom @SERIAL_PORT@
+    BOARD uno)

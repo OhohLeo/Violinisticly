@@ -29,7 +29,7 @@ func New() error {
 
 	// Gestion des pages web statique
 	http.Handle("/", http.StripPrefix("/",
-		http.FileServer(http.Dir("/home/lmartin/accelerometer/src/web"))))
+		http.FileServer(http.Dir("/home/ohohleo/accelerometer/src/web"))))
 
 	return nil
 }

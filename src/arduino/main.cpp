@@ -1,6 +1,16 @@
 #include <Arduino.h>
 #include <stdio.h>
 
+// ADXL335EB : accelerometer (x, y, z)
+// COM  => GND
+// Z    => A0
+// Y    => A1
+// X    => A2
+// VSS  => 3.3V
+// ST   => not linked
+
+// STATUS : replaced by MPU-6050 6-axis accelerometer/gyroscope
+
 bool has_changed(int previous_value, int new_value);
 
 #define MARGIN    5
@@ -30,7 +40,7 @@ void loop() {
   {
       // print the sensor values:
       sprintf(tmp, "%d-%d-%d", x, y, z);
-      Serial.println(tmp);
+	  Serial.println(tmp);
 
       previous_x = x;
       previous_y = y;
