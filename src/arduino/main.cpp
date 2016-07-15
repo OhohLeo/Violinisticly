@@ -1,77 +1,77 @@
-#include <Arduino.h>
-#include <stdio.h>
+#include "I2Cdev.h"
+#include "MPU6050.h"
 
-// ADXL335EB : accelerometer (x, y, z)
-// COM  => GND
-// Z    => A0
-// Y    => A1
-// X    => A2
-// VSS  => 3.3V
-// ST   => not linked
+// class default I2C address is 0x68
+// specific I2C addresses may be passed as a parameter here
+// AD0 low = 0x68 (default for InvenSense evaluation board)
+// AD0 high = 0x69
+MPU6050 accelgyro;
+//MPU6050 accelgyro(0x69); // <-- use for AD0 high
 
-// STATUS : replaced by MPU-6050 6-axis accelerometer/gyroscope
+int16_t ax, ay, az;
+int16_t gx, gy, gz;
 
-bool has_changed(int previous_value, int new_value);
+// uncomment "OUTPUT_READABLE_ACCELGYRO" if you want to see a tab-separated
+// list of the accel X/Y/Z and then gyro X/Y/Z values in decimal. Easy to read,
+// not so easy to parse, and slow(er) over UART.
+#define OUTPUT_READABLE_ACCELGYRO
 
-#define MARGIN    5
+// uncomment "OUTPUT_BINARY_ACCELGYRO" to send all 6 axes of data as 16-bit
+// binary, one right after the other. This is very fast (as fast as possible
+// without compression or data loss), and easy to parse, but impossible to read
+// for a human.
+//#define OUTPUT_BINARY_ACCELGYRO
 
-// these constants describe the pins. They won't change:
-const int groundpin = 18;             // analog input pin 4 -- ground
-const int powerpin = 19;              // analog input pin 5 -- voltage
-const int xpin = A2;                  // x-axis of the accelerometer
-const int ypin = A1;                  // y-axis
-const int zpin = A0;                  // z-axis (only on 3-axis models)
+#define LED_PIN 13
+bool blinkState = false;
 
-int previous_x, previous_y, previous_z;
+void setup() {
+    // join I2C bus (I2Cdev library doesn't do this automatically)
+    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+        Wire.begin();
+    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+        Fastwire::setup(400, true);
+    #endif
+
+    // initialize serial communication
+    Serial.begin(38400);
+
+    // initialize device
+    accelgyro.initialize();
+
+    // configure Arduino LED for
+    // pinMode(LED_PIN, OUTPUT);
+}
 
 void loop() {
+    // read raw accel/gyro measurements from device
+    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
 
-  char tmp[30];
+    // these methods (and a few others) are also available
+    //accelgyro.getAcceleration(&ax, &ay, &az);
+    //accelgyro.getRotation(&gx, &gy, &gz);
 
-  int x, y, z;
+    #ifdef OUTPUT_READABLE_ACCELGYRO
+        // display tab-separated accel/gyro x/y/z values
+        Serial.print("a/g:\t");
+        Serial.print(ax); Serial.print("\t");
+        Serial.print(ay); Serial.print("\t");
+        Serial.print(az); Serial.print("\t");
+        Serial.print(gx); Serial.print("\t");
+        Serial.print(gy); Serial.print("\t");
+        Serial.println(gz);
+    #endif
 
-  x = analogRead(xpin);
-  y = analogRead(ypin);
-  z = analogRead(zpin);
+    #ifdef OUTPUT_BINARY_ACCELGYRO
+        Serial.write((uint8_t)(ax >> 8)); Serial.write((uint8_t)(ax & 0xFF));
+        Serial.write((uint8_t)(ay >> 8)); Serial.write((uint8_t)(ay & 0xFF));
+        Serial.write((uint8_t)(az >> 8)); Serial.write((uint8_t)(az & 0xFF));
+        Serial.write((uint8_t)(gx >> 8)); Serial.write((uint8_t)(gx & 0xFF));
+        Serial.write((uint8_t)(gy >> 8)); Serial.write((uint8_t)(gy & 0xFF));
+œ        Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
+    #endif
 
-  if (has_changed(previous_x, x)
-      || has_changed(previous_y, y)
-      || has_changed(previous_z, z))
-  {
-      // print the sensor values:
-      sprintf(tmp, "%d-%d-%d", x, y, z);
-	  Serial.println(tmp);
-
-      previous_x = x;
-      previous_y = y;
-      previous_z = z;
-  }
-
-  // delay before next reading:
-  delay(100);
-}
-
-bool has_changed(int previous_value, int new_value)
-{
-    if (new_value >= previous_value + MARGIN
-        || new_value <= previous_value - MARGIN)
-        return true;
-
-    return false;
-}
-
-int main(void)
-{
-    // Mandatory init
-    init();
-
-    Serial.begin(115200);
-
-    // Pin 13 has an LED connected on most Arduino boards
-    pinMode(13, OUTPUT);
-
-    while (true)
-        loop();
-
-    return 0;
+    // blink LED to indicate activity
+    blinkState = !blinkState;
+    digitalWrite(LED_PIN, blinkState);
 }
