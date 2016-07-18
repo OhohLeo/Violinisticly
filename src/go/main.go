@@ -9,7 +9,7 @@ import (
 
 func main() {
 
-	accelerometer, err := input.AccelerometerSerial("/dev/ttyACM0", 115200)
+	accelerometer, err := input.AccelGyroSerial("/dev/ttyACM1", 38400, false)
 	if err != nil {
 		log.Fatal(err)
 	}

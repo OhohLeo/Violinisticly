@@ -8,7 +8,7 @@ import (
 	"ohohleo/accelerometer/input"
 )
 
-func NewStream(ch chan input.Accelerometer) error {
+func NewStream(ch chan input.AccelGyro) error {
 
 	// Mise en place de l'API Stream
 	apiStream := rest.NewApi()
@@ -31,7 +31,7 @@ func NewStream(ch chan input.Accelerometer) error {
 	return nil
 }
 
-func Stream(ch chan input.Accelerometer) func(w rest.ResponseWriter, r *rest.Request) {
+func Stream(ch chan input.AccelGyro) func(w rest.ResponseWriter, r *rest.Request) {
 
 	return func(w rest.ResponseWriter, r *rest.Request) {
 
