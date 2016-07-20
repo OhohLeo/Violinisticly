@@ -3,9 +3,9 @@ package api
 import (
 	//"fmt"
 	"github.com/ant0ine/go-json-rest/rest"
+	"github.com/ohohleo/violin/input"
 	"log"
 	"net/http"
-	"ohohleo/accelerometer/input"
 )
 
 func NewStream(ch chan input.AccelGyro) error {

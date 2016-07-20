@@ -1,15 +1,16 @@
 package main
 
 import (
+	"github.com/ohohleo/violin/api"
+	"github.com/ohohleo/violin/input"
+	"github.com/ohohleo/violin/opengl"
 	"log"
 	"net/http"
-	"ohohleo/accelerometer/api"
-	"ohohleo/accelerometer/input"
 )
 
 func main() {
 
-	accelerometer, err := input.AccelGyroSerial("/dev/ttyACM1", 38400, false)
+	accelerometer, err := input.AccelGyroSerial("/dev/ttyACM0", 38400, false)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -25,6 +26,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	go func() {
+		if err := opengl.CreateWindow(); err != nil {
+			panic(err)
+		}
+	}()
 
 	log.Println("Listening :5000 ...")
 	http.ListenAndServe(":5000", nil)
