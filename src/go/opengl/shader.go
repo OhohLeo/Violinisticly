@@ -54,6 +54,9 @@ func CreateShader(filename string) (s *Shader, err error) {
 	name := []byte("position")
 	gl.BindAttribLocation(program, 0, &name[0])
 
+	name = []byte("textureCoord")
+	gl.BindAttribLocation(program, 1, &name[0])
+
 	// Vérification du programme
 	gl.LinkProgram(program)
 	if err = checkShader(program, gl.LINK_STATUS, true, "Program linking failed"); err != nil {

@@ -17,30 +17,34 @@ func CreateWindow() error {
 	defer window.Destroy()
 
 	// Colorie le fond d'écran
-	// renderer, _ := sdl.CreateRenderer(window, -1, 0)
-	// renderer.SetDrawColor(200, 200, 200, 255)
-	// renderer.Clear()
-	// renderer.Present()
-
-	// surface, err := window.GetSurface()
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// rect := sdl.Rect{0, 0, 200, 200}
-	// surface.FillRect(&rect, 0xffff0000)
-
-	// window.UpdateSurface()
+	renderer, _ := sdl.CreateRenderer(window, -1, 0)
+	renderer.SetDrawColor(20, 20, 20, 255)
+	renderer.Clear()
+	renderer.Present()
 
 	vertices := []Vertex{
-		{mgl32.Vec3{-0.5, -0.5, 0.0}},
-		{mgl32.Vec3{0.0, 0.5, 0.0}},
-		{mgl32.Vec3{0.5, -0.5, 0.0}},
+		{
+			Position:     mgl32.Vec3{-0.5, -0.5, 0.0},
+			TextureCoord: mgl32.Vec2{0.0, 0.0},
+		},
+		{
+			Position:     mgl32.Vec3{0.0, 0.5, 0.0},
+			TextureCoord: mgl32.Vec2{0.5, 1.0},
+		},
+		{
+			Position:     mgl32.Vec3{0.5, -0.5, 0.0},
+			TextureCoord: mgl32.Vec2{1.0, 0.0},
+		},
 	}
 
 	mesh := CreateMesh(vertices)
 
 	shader, err := CreateShader("./basicShader")
+	if err != nil {
+		panic(err)
+	}
+
+	texture, err := CreateTexture("./bricks.jpg")
 	if err != nil {
 		panic(err)
 	}
@@ -51,6 +55,7 @@ func CreateWindow() error {
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 		shader.Bind()
+		texture.Bind(0)
 		mesh.Draw()
 
 		// Gestion des évèvements
