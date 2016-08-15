@@ -7,11 +7,17 @@ import (
 	"unsafe"
 )
 
-const NUM_SHADERS = 2
+const (
+	TRANSFORM_U = iota
+	NUM_UNIFORMS
+
+	NUM_SHADERS = 2
+)
 
 type Shader struct {
-	program uint32
-	shaders []uint32
+	program  uint32
+	shaders  []uint32
+	uniforms []int32
 }
 
 func CreateShader(filename string) (s *Shader, err error) {
@@ -19,10 +25,11 @@ func CreateShader(filename string) (s *Shader, err error) {
 	// Création du programme
 	program := gl.CreateProgram()
 
-	// Initialisation du tableau de shaders
+	// Initialisation du tableau de shaders & des uniforms
 	s = &Shader{
-		program: program,
-		shaders: make([]uint32, NUM_SHADERS),
+		program:  program,
+		shaders:  make([]uint32, NUM_SHADERS),
+		uniforms: make([]int32, NUM_UNIFORMS),
 	}
 
 	// Charge le fichier contenant le VertexShader
@@ -51,11 +58,9 @@ func CreateShader(filename string) (s *Shader, err error) {
 		gl.AttachShader(program, s.shaders[i])
 	}
 
-	name := []byte("position")
-	gl.BindAttribLocation(program, 0, &name[0])
-
-	name = []byte("textureCoord")
-	gl.BindAttribLocation(program, 1, &name[0])
+	// Allocation des noms utilisés par le programme basicShader.vs
+	gl.BindAttribLocation(program, 0, gl.Str("position\x00"))
+	gl.BindAttribLocation(program, 1, gl.Str("textureCoord\x00"))
 
 	// Vérification du programme
 	gl.LinkProgram(program)
@@ -67,6 +72,8 @@ func CreateShader(filename string) (s *Shader, err error) {
 	if err = checkShader(program, gl.VALIDATE_STATUS, true, "Program is invalid"); err != nil {
 		return
 	}
+
+	s.uniforms[TRANSFORM_U] = gl.GetUniformLocation(program, gl.Str("transform\x00"))
 
 	return
 }
@@ -83,6 +90,12 @@ func (s *Shader) Destroy() {
 
 func (s *Shader) Bind() {
 	gl.UseProgram(s.program)
+}
+
+func (s *Shader) Update(transform *Transform) {
+
+	model := transform.GetModel()
+	gl.UniformMatrix4fv(s.uniforms[TRANSFORM_U], 1, false, &model[0])
 }
 
 func createShader(data []byte, shaderType uint32) (shader uint32, err error) {

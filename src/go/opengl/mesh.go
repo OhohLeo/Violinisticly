@@ -34,7 +34,7 @@ func CreateMesh(vertices []Vertex) *Mesh {
 	gl.GenVertexArrays(1, &m.vertexArrayObject)
 	gl.BindVertexArray(m.vertexArrayObject)
 
-	// Récupération de la position & des coordonnées des textures
+	// Récupération des positions & des coordonnées des textures
 	positions := make([]mgl32.Vec3, numVertices)
 	textureCoords := make([]mgl32.Vec2, numVertices)
 
@@ -48,6 +48,7 @@ func CreateMesh(vertices []Vertex) *Mesh {
 	// Création des buffers
 	gl.GenBuffers(NUM_BUFFERS, &m.vertexArrayBuffers[POSITION_VB])
 
+	// **********************
 	// Gestion de la position
 
 	// Alloue les buffers
@@ -66,6 +67,7 @@ func CreateMesh(vertices []Vertex) *Mesh {
 	// Lis les attributs
 	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, 0, nil)
 
+	// *********************
 	// Gestion de la texture
 
 	// Alloue les buffers
