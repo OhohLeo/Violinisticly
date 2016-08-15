@@ -19,6 +19,6 @@ set(ARDUINO_HDRS ${CMAKE_SOURCE_DIR}/src/arduino/I2Cdev.h
 generate_arduino_firmware(arduino
     SRCS ${ARDUINO_SRCS}
 	HDRS ${ARDUINO_HDRS}
-    PORT  /dev/ttyACM1
+    PORT  /dev/ttyACM0
     SERIAL picocom @SERIAL_PORT@
     BOARD uno)

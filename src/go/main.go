@@ -2,18 +2,19 @@ package main
 
 import (
 	// "github.com/ohohleo/violin/api"
-	// "github.com/ohohleo/violin/input"
+	"fmt"
+	"github.com/ohohleo/violin/input"
 	"github.com/ohohleo/violin/opengl"
-	//"log"
+	"log"
 	//"net/http"
 )
 
 func main() {
 
-	// accelerometer, err := input.AccelGyroSerial("/dev/ttyACM0", 38400, false)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	accelerometer, err := input.AccelGyroSerial("/dev/ttyACM0", 38400)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// err = api.New()
 
@@ -27,11 +28,27 @@ func main() {
 	// 	log.Fatal(err)
 	// }
 
-	// go func() {
-	if err := opengl.CreateWindow(); err != nil {
+	//go func() {
+	window, err := opengl.CreateWindow()
+	if err != nil {
 		panic(err)
 	}
-	// }()
+
+	object := window.AddObject()
+	go func() {
+		for {
+			values := <-accelerometer
+			fmt.Printf("\x1b[2K\x1b[G %s", values)
+			object.GetTransform().SetRotate(
+				values.Roll/100,
+				-values.Yaw/100,
+				values.Pitch/100)
+		}
+	}()
+
+	window.Start()
+
+	//}()
 
 	// log.Println("Listening :5000 ...")
 	// http.ListenAndServe(":5000", nil)

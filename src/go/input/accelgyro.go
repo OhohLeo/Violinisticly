@@ -2,33 +2,103 @@ package input
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"github.com/tarm/serial"
 	"log"
-	"strconv"
-	"strings"
+	"math"
 )
 
-type AccelGyro struct {
-	aX int
-	aY int
-	aZ int
+const (
+	QUATERNION = 1 << iota
+	EULER
+	YAWPITCHROLL
+	REALACCEL
+	WORLDACCEL
 
-	gX int
-	gY int
-	gZ int
+	IDX_HEADER = 0
+	IDX_LEN    = 1
+
+	SIZE_HEADER = 2
+	SIZE_CRC    = 2
+)
+
+var INIT_STATUS []string = []string{
+	"MPU init",
+	"MPU connection",
+	"DMP init",
+	"DMP interrupt status",
+	"FIFO overflow!",
+}
+
+type AccelGyro struct {
+	Status int
+
+	// Quaternion
+	QuaternionW float32
+	QuaternionX float32
+	QuaternionY float32
+	QuaternionZ float32
+
+	// Euler
+	EulerX float32
+	EulerY float32
+	EulerZ float32
+
+	// Yaw/Pitch/Roll
+	Yaw   float32
+	Pitch float32
+	Roll  float32
+
+	// Real Acceleration
+	RealX float32
+	RealY float32
+	RealZ float32
+
+	// World Acceleration
+	WorldX float32
+	WorldY float32
+	WorldZ float32
 }
 
 func (a *AccelGyro) String() string {
-	return fmt.Sprintf("x%dy%dz%d", a.aX, a.aY, a.aZ)
+
+	result := ""
+
+	if (a.Status & QUATERNION) > 0 {
+		result += fmt.Sprintf("quaternion:\tw:%f\tx:%f\ty:%f\tz:%f",
+			a.QuaternionW, a.QuaternionX, a.QuaternionY, a.QuaternionZ)
+	}
+
+	if (a.Status & EULER) > 0 {
+		result += fmt.Sprintf("euler:\tx:%f\ty:%f\tz:%f",
+			a.EulerX, a.EulerY, a.EulerZ)
+	}
+
+	if (a.Status & YAWPITCHROLL) > 0 {
+		result += fmt.Sprintf("yaw/pitch/roll:\tyaw:%f\tpitch:%f\troll:%f",
+			a.Yaw, a.Pitch, a.Roll)
+	}
+
+	if (a.Status & REALACCEL) > 0 {
+		result += fmt.Sprintf("real:\tx:%f\ty:%f\tz:%f",
+			a.RealX, a.RealY, a.RealZ)
+	}
+
+	if (a.Status & WORLDACCEL) > 0 {
+		result += fmt.Sprintf("world:\tx:%f\ty:%f\tz:%f",
+			a.WorldX, a.WorldY, a.WorldZ)
+	}
+
+	return result
 }
 
 // Etablie la connexion avec le port série spécifié pour récupérer les
 // données provenant de l'accéléromètre & du gyroscope
-func AccelGyroSerial(device string, baudrate int, isReadable bool) (chan AccelGyro, error) {
+func AccelGyroSerial(device string, baudrate int) (chan *AccelGyro, error) {
 
 	// Création du channel
-	channel := make(chan AccelGyro)
+	channel := make(chan *AccelGyro)
 
 	// Configuration du port série
 	c := &serial.Config{
@@ -45,61 +115,15 @@ func AccelGyroSerial(device string, baudrate int, isReadable bool) (chan AccelGy
 	// Lecture
 	buf := bufio.NewReader(s)
 
-	if isReadable {
-		go fromReadable(buf, channel)
-	} else {
-		go fromBynary(buf, channel)
-	}
+	go fromBinary(buf, channel)
 
 	return channel, nil
 }
 
-// Réception des valeurs lisibles OUTPUT_READABLE_ACCELGYRO
-func fromReadable(buf *bufio.Reader, channel chan AccelGyro) {
-
-	values := make([]int, 6)
-
-	for {
-		rcv, err := buf.ReadBytes('\n')
-		if err != nil {
-			return
-		}
-
-		strValues := strings.SplitN(
-			strings.TrimSpace(string(rcv)), "\t", 6)
-
-		if len(strValues) != 6 {
-			continue
-		}
-
-		for idx, strVal := range strValues {
-			number, err := strconv.Atoi(strVal)
-			if err != nil {
-				log.Printf("Unexpected value at id #%d (%s): %s",
-					idx, strVal, err.Error())
-				continue
-			}
-
-			values[idx] = number
-		}
-
-		accelerometer := AccelGyro{
-			aX: values[0],
-			aY: values[1],
-			aZ: values[2],
-			gX: values[3],
-			gY: values[4],
-			gZ: values[5],
-		}
-
-		log.Printf("%+v", accelerometer)
-	}
-}
+var previousBuffer []byte
 
 // Réception des valeurs binaires OUTPUT_BINARY_ACCELGYRO
-func fromBynary(buf *bufio.Reader, channel chan AccelGyro) {
-	var previousBuffer []byte
-	var previousSize int
+func fromBinary(buf *bufio.Reader, channel chan *AccelGyro) {
 	var crc int
 
 	for {
@@ -108,90 +132,153 @@ func fromBynary(buf *bufio.Reader, channel chan AccelGyro) {
 			return
 		}
 
-		// Taille du buffer trop petite
-		if len(rcv) < 17 {
-
-			// Stockage du buffer le temps de recevoir le reste
-			if previousBuffer == nil {
-
-				previousBuffer = make([]byte, 17)
-				previousSize = len(rcv)
-
-				for i := 0; i < len(rcv); i++ {
-					previousBuffer[i] = rcv[i]
-				}
-
-				continue
-			}
-
-			if previousSize+len(rcv) != 17 {
-				goto error
-			}
-
-			// sinon on rajoute ce que l'on vient d'obtenir au
-			// buffer
-			for i := 0; i < len(rcv); i++ {
-				previousBuffer[previousSize+i] = rcv[i]
-			}
-
+		// Un buffer est déjà stocké : on concatène les nouvelles données reçues
+		if previousBuffer != nil {
+			previousBuffer = append(previousBuffer, rcv...)
 			rcv = previousBuffer
 		}
 
-		previousBuffer = nil
-		previousSize = 0
+		// Taille du buffer trop petite
+		if len(rcv) < 7 {
+			continue
+		}
 
-		// Vérification de la taille et de l'entête
-		if len(rcv) == 17 && rcv[0] == ':' {
+		// Vérification du caractère d'entête ':'
+		if rcv[IDX_HEADER] == ':' {
 
 			// Récupération de la taille
-			len := rcv[1]
+			length := int(rcv[IDX_LEN])
+
+			// Vérification de la taille + CRC (2 octets)
+			if len(rcv) < IDX_LEN+length+SIZE_CRC+1 {
+				previousBuffer = rcv
+				continue
+			}
+
+			// Trame dont la taille est correcte : réinitialisation du buffer
+			previousBuffer = nil
 
 			// Récupération du crc
-			crc = uint16ToInt(rcv[len+2], rcv[len+3])
+			crc = uint16ToInt(rcv[SIZE_HEADER+length], rcv[SIZE_HEADER+length+1])
 
-			rcv = rcv[2 : len+2]
+			// Suppression de l'entête et du CRC
+			rcv = rcv[SIZE_HEADER : SIZE_HEADER+length]
 
 			// Vérification du crc
 			expect := crc16(rcv)
 			if crc != expect {
 				log.Printf("invalid crc: got %04X, expect %04X\n", crc, expect)
-				goto error
+				continue
 			}
 
-			accelerometer := AccelGyro{
-				aX: uint16ToInt16(rcv[0], rcv[1]),
-				aY: uint16ToInt16(rcv[2], rcv[3]),
-				aZ: uint16ToInt16(rcv[4], rcv[5]),
-				gX: uint16ToInt16(rcv[6], rcv[7]),
-				gY: uint16ToInt16(rcv[8], rcv[9]),
-				gZ: uint16ToInt16(rcv[10], rcv[11]),
+			// Récupération du status
+			status := rcv[0]
+
+			// Récupération d'un status d'initialisation
+			if length == 2 && status < 5 {
+				log.Printf("%s: %d\n", INIT_STATUS[status], rcv[1])
+				continue
 			}
 
-			log.Printf("%+v", accelerometer)
+			rcv = rcv[1:]
 
-			continue
+			values := &AccelGyro{
+				Status: int(status),
+			}
 
+			if status&QUATERNION > 0 {
+
+				if len(rcv) < 16 {
+					log.Printf("Quaternion: invalid got %d expect %d\n", len(rcv), 16)
+					continue
+				}
+
+				values.QuaternionW = float32frombytes(rcv)
+				values.QuaternionX = float32frombytes(rcv[4:])
+				values.QuaternionY = float32frombytes(rcv[8:])
+				values.QuaternionZ = float32frombytes(rcv[12:])
+
+				rcv = rcv[16:]
+			}
+
+			if status&EULER > 0 {
+
+				if len(rcv) < 12 {
+					log.Printf("Euler: invalid got %d expect %d\n", len(rcv), 12)
+					continue
+				}
+
+				values.EulerX = float32frombytes(rcv)
+				values.EulerY = float32frombytes(rcv[4:])
+				values.EulerZ = float32frombytes(rcv[8:])
+
+				rcv = rcv[12:]
+			}
+
+			if status&YAWPITCHROLL > 0 {
+
+				if len(rcv) < 12 {
+					log.Printf("Euler: invalid got %d expect %d\n", len(rcv), 12)
+					continue
+				}
+
+				values.Yaw = float32frombytes(rcv)
+				values.Pitch = float32frombytes(rcv[4:])
+				values.Roll = float32frombytes(rcv[8:])
+
+				rcv = rcv[12:]
+			}
+
+			if status&REALACCEL > 0 {
+
+				if len(rcv) < 12 {
+					log.Printf("Euler: invalid got %d expect %d\n", len(rcv), 12)
+					continue
+				}
+
+				values.RealX = float32frombytes(rcv)
+				values.RealY = float32frombytes(rcv[4:])
+				values.RealZ = float32frombytes(rcv[8:])
+
+				rcv = rcv[12:]
+			}
+
+			if status&WORLDACCEL > 0 {
+
+				if len(rcv) < 12 {
+					log.Printf("Euler: invalid got %d expect %d\n", len(rcv), 12)
+					continue
+				}
+
+				values.WorldX = float32frombytes(rcv)
+				values.WorldY = float32frombytes(rcv[4:])
+				values.WorldZ = float32frombytes(rcv[8:])
+
+				rcv = rcv[12:]
+			}
+
+			channel <- values
 		}
-
-	error:
-		previousBuffer = nil
-		previousSize = 0
-		log.Printf("invalid data received size:%d value:%+v\n", len(rcv), rcv)
-		continue
 	}
+}
+
+func float32frombytes(bytes []byte) float32 {
+	bits := binary.LittleEndian.Uint32(bytes)
+	float := math.Float32frombits(bits)
+	return float
 }
 
 func uint16ToInt(hi byte, low byte) int {
 	return int(hi)<<8 + int(low)
 }
 
-func uint16ToInt16(hi byte, low byte) int {
+func uint16ToInt16(hi byte, low byte) int64 {
 	value := uint16ToInt(hi, low)
 	if value&0x4000 > 0 {
-		return -1 * (-value & 0x7fff)
+		return int64(-1 * (-value & 0x7fff))
 	}
 
-	return value
+	return int64(value)
 }
 
 // Implements CRC-CCITT (Kermit)
