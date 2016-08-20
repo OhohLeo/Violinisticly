@@ -15,6 +15,7 @@ const (
 	YAWPITCHROLL
 	REALACCEL
 	WORLDACCEL
+	BUFFER
 
 	IDX_HEADER = 0
 	IDX_LEN    = 1
@@ -65,28 +66,31 @@ func (a *AccelGyro) String() string {
 
 	result := ""
 
-	if (a.Status & QUATERNION) > 0 {
-		result += fmt.Sprintf("quaternion:\tw:%f\tx:%f\ty:%f\tz:%f",
-			a.QuaternionW, a.QuaternionX, a.QuaternionY, a.QuaternionZ)
+	if (a.Status&QUATERNION) > 0 || (a.Status&BUFFER) > 0 {
+		result += fmt.Sprintf("quaternion:\tw:%f\tx:%f\ty:%f\tz:%f\n",
+			round(a.QuaternionW, .5, 3),
+			round(a.QuaternionX, .5, 3),
+			round(a.QuaternionY, .5, 3),
+			round(a.QuaternionZ, .5, 3))
 	}
 
 	if (a.Status & EULER) > 0 {
-		result += fmt.Sprintf("euler:\tx:%f\ty:%f\tz:%f",
+		result += fmt.Sprintf("euler:\tx:%f\ty:%f\tz:%f\n",
 			a.EulerX, a.EulerY, a.EulerZ)
 	}
 
 	if (a.Status & YAWPITCHROLL) > 0 {
-		result += fmt.Sprintf("yaw/pitch/roll:\tyaw:%f\tpitch:%f\troll:%f",
+		result += fmt.Sprintf("yaw/pitch/roll:\tyaw:%f\tpitch:%f\troll:%f\n",
 			a.Yaw, a.Pitch, a.Roll)
 	}
 
 	if (a.Status & REALACCEL) > 0 {
-		result += fmt.Sprintf("real:\tx:%f\ty:%f\tz:%f",
+		result += fmt.Sprintf("real:\tx:%f\ty:%f\tz:%f\n",
 			a.RealX, a.RealY, a.RealZ)
 	}
 
 	if (a.Status & WORLDACCEL) > 0 {
-		result += fmt.Sprintf("world:\tx:%f\ty:%f\tz:%f",
+		result += fmt.Sprintf("world:\tx:%f\ty:%f\tz:%f\n",
 			a.WorldX, a.WorldY, a.WorldZ)
 	}
 
@@ -257,9 +261,33 @@ func fromBinary(buf *bufio.Reader, channel chan *AccelGyro) {
 				rcv = rcv[12:]
 			}
 
+			if status&BUFFER > 0 {
+
+				if len(rcv) < 8 {
+					log.Printf("Buffer: invalid got %d expect %d\n", len(rcv), 8)
+					continue
+				}
+
+				values.QuaternionW = getQuaternion(0, rcv)
+				values.QuaternionX = getQuaternion(2, rcv)
+				values.QuaternionY = getQuaternion(4, rcv)
+				values.QuaternionZ = getQuaternion(6, rcv)
+
+				rcv = rcv[8:]
+			}
+
 			channel <- values
 		}
 	}
+}
+
+func getQuaternion(idx int, rcv []byte) float32 {
+	val := float32(uint16(rcv[idx])<<8|uint16(rcv[idx+1])) / 16384.0
+	if val >= 2 {
+		return float32(val - 4)
+	}
+
+	return val
 }
 
 func float32frombytes(bytes []byte) float32 {
@@ -279,6 +307,20 @@ func uint16ToInt16(hi byte, low byte) int64 {
 	}
 
 	return int64(value)
+}
+
+func round(val float32, roundOn float64, places int) (newVal float64) {
+	var round float64
+	pow := math.Pow(10, float64(places))
+	digit := pow * float64(val)
+	_, div := math.Modf(digit)
+	if div >= roundOn {
+		round = math.Ceil(digit)
+	} else {
+		round = math.Floor(digit)
+	}
+	newVal = round / pow
+	return
 }
 
 // Implements CRC-CCITT (Kermit)

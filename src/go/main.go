@@ -38,11 +38,12 @@ func main() {
 	go func() {
 		for {
 			values := <-accelerometer
-			fmt.Printf("\x1b[2K\x1b[G %s", values)
+			fmt.Printf("%s", values)
 			object.GetTransform().SetRotate(
-				values.Roll/100,
-				-values.Yaw/100,
-				values.Pitch/100)
+				values.QuaternionW,
+				values.QuaternionX,
+				values.QuaternionY,
+				values.QuaternionZ)
 		}
 	}()
 

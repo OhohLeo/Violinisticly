@@ -28,7 +28,7 @@ int16_t gx, gy, gz;
 // uncomment "OUTPUT_QUATERNION" if you want to see the actual
 // quaternion components in a [w, x, y, z] format (not best for parsing
 // on a remote host such as Processing or something though)
-// #define OUTPUT_QUATERNION   0x01
+#define OUTPUT_QUATERNION   0x01
 
 // uncomment "OUTPUT_EULER" if you want to see Euler angles
 // (in degrees) calculated from the quaternions coming from the FIFO.
@@ -41,7 +41,7 @@ int16_t gx, gy, gz;
 // from the FIFO. Note this also requires gravity vector calculations.
 // Also note that yaw/pitch/roll angles suffer from gimbal lock (for
 // more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-#define OUTPUT_YAWPITCHROLL 0x04
+// #define OUTPUT_YAWPITCHROLL 0x04
 
 // uncomment "OUTPUT_REALACCEL" if you want to see acceleration
 // components with gravity removed. This acceleration reference frame is
@@ -55,6 +55,9 @@ int16_t gx, gy, gz;
 // reference (yaw is relative to initial orientation, since no magnetometer
 // is present in this case). Could be quite handy in some cases.
 // #define OUTPUT_WORLDACCEL   0x10
+
+//#define OUTPUT_BUFFER       0x20
+//#define BUFFER_SIZE         8
 
 #define MPU_INITIALIZE 0
 #define MPU_CONNECTION 1
@@ -122,10 +125,10 @@ void setup()
 	send_status(DMP_INITIALIZE, ua_dev_status);
 
     // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(220);
+    mpu.setXGyroOffset(120);
     mpu.setYGyroOffset(76);
-    mpu.setZGyroOffset(-85);
-    mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
+    mpu.setZGyroOffset(-185);
+    mpu.setZAccelOffset(1688); // 1688 factory default for my test chip
 
     // make sure it worked (returns 0 if so)
     if (ua_dev_status == 0)
@@ -177,6 +180,7 @@ void loop()
   }
   else if (ua_mpu_interrupt_status & 0x02)
   {
+	uint8_t ua_idx, ua_nb = 0;
 	uint8_t ua_data_len = 1;
 	uint8_t ua_types = 0;
     uint8_t *pua_buf, *pua_data_buf, *pua_data_start;
@@ -194,8 +198,14 @@ void loop()
 	// (this lets us immediately read more without waiting for an interrupt)
 	uh_fifo_count -= uh_packet_size;
 
+
+#ifdef OUTPUT_BUFFER
+	ua_data_len += BUFFER_SIZE;
+	ua_types |= OUTPUT_BUFFER;
+#else
 	// display quaternion values in easy matrix form: w x y z
 	mpu.dmpGetQuaternion(&s_quaternion, ua_fifo_buffer);
+#endif
 
 #ifdef OUTPUT_QUATERNION
 	ua_data_len += 4 * sizeof(float);
@@ -244,6 +254,17 @@ void loop()
 
 	// Setup type of data expected
 	*pua_data_buf++ = ua_types;
+
+#ifdef OUTPUT_BUFFER
+	*pua_data_buf++ = ua_fifo_buffer[0];
+	*pua_data_buf++ = ua_fifo_buffer[1];
+	*pua_data_buf++ = ua_fifo_buffer[4];
+	*pua_data_buf++ = ua_fifo_buffer[5];
+	*pua_data_buf++ = ua_fifo_buffer[8];
+	*pua_data_buf++ = ua_fifo_buffer[9];
+	*pua_data_buf++ = ua_fifo_buffer[12];
+	*pua_data_buf++ = ua_fifo_buffer[13];
+#endif
 
 #ifdef OUTPUT_QUATERNION
 	pua_data_buf += store_float32(pua_data_buf, s_quaternion.w);

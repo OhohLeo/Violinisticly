@@ -5,6 +5,7 @@ import (
 	"github.com/go-gl/gl/v4.1-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
+	"runtime"
 	"time"
 )
 
@@ -59,6 +60,8 @@ func CreateWindow() (w *Window, err error) {
 }
 
 func (w *Window) Start() {
+
+	runtime.LockOSThread()
 
 	fps := 0
 	counter := 0.0
@@ -127,36 +130,36 @@ func (w *Window) keyboard(window *glfw.Window, key glfw.Key, scancode int, actio
 
 	switch key {
 	case glfw.KeyUp:
-		if modifiers&glfw.ModShift > 0 {
-			transform.Scale(0.05, 0.05, 0.05)
-		} else if modifiers&glfw.ModAlt > 0 {
-			transform.Rotate(0.05, 0.0, 0.0)
-		} else {
-			transform.Move(0.0, 0.05, 0.0)
-		}
+		// if modifiers&glfw.ModShift > 0 {
+		// 	transform.Scale(0.05, 0.05, 0.05)
+		// } else if modifiers&glfw.ModAlt > 0
+		// {
+		transform.Rotate(0.05, 0.0, 0.0)
+		// } else {
+		// 	transform.Move(0.0, 0.05, 0.0)
+		// }
 	case glfw.KeyDown:
-		if modifiers&glfw.ModShift > 0 {
-			transform.Scale(-0.05, -0.05, -0.05)
-		} else if modifiers&glfw.ModAlt > 0 {
-			transform.Rotate(-0.05, 0.0, 0.0)
-		} else {
-			transform.Move(0.0, -0.05, 0.0)
-		}
-	case glfw.KeyLeft:
-		if modifiers&glfw.ModControl > 0 {
-			transform.Rotate(0.0, -0.05, 0.0)
-		} else if modifiers&glfw.ModAlt > 0 {
-			transform.Rotate(0.0, 0.0, -0.05)
-		} else {
-			transform.Move(-0.05, 0.0, 0.0)
-		}
-	case glfw.KeyRight:
-		if modifiers&glfw.ModControl > 0 {
-			transform.Rotate(0.0, 0.05, 0.0)
-		} else if modifiers&glfw.ModAlt > 0 {
-			transform.Rotate(0.0, 0.0, 0.05)
-		} else {
-			transform.Move(0.05, 0.0, 0.0)
-		}
+		// if modifiers&glfw.ModShift > 0 {
+		// 	transform.Scale(-0.05, -0.05, -0.05)
+		// } else if modifiers&glfw.ModAlt > 0 {
+		transform.Rotate(-0.05, 0.0, 0.0)
+		// } else {
+		// 	transform.Move(0.0, -0.05, 0.0)
+		// }
+		// case glfw.KeyLeft:
+		//    if modifiers&glfw.ModControl > 0 {
+		// 		transform.Rotate(0.0, -0.05, 0.0)
+		// 	} else if modifiers&glfw.ModAlt > 0 {
+		// 		transform.Rotate(0.0, 0.0, -0.05)
+		// 	} else {
+		// 		transform.Move(-0.05, 0.0, 0.0)
+		// 	}
+		// case glfw.KeyRight:
+		// 	if modifiers&glfw.ModControl > 0 {
+		// 		transform.Rotate(0.0, 0.05, 0.0)
+		// 	} else if modifiers&glfw.ModAlt > 0 {
+		// 		transform.Rotate(0.0, 0.0, 0.05)
+		// 	} else {
+		// 		transform.Move(0.05, 0.0, 0.0)
 	}
 }
