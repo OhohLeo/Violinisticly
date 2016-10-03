@@ -8,6 +8,13 @@ uint8_t store_float32(uint8_t *pua_buf, float value);
 void send_status(uint8_t ua_type, uint8_t ua_status);
 uint8_t *frame_get(uint8_t *data, uint8_t len);
 
+// MPU6050    -     ARDUINO
+// VCC => black  => 3.3V
+// GND => white  => GND
+// SCL => grey   => A5
+// SDA => purple => A4
+// INT => orange => DIGITAL-2
+
 // class default I2C address is 0x68
 // specific I2C addresses may be passed as a parameter here
 // AD0 low = 0x68 (default for InvenSense evaluation board)
