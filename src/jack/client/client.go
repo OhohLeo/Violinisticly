@@ -4,13 +4,21 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
+	"unsafe"
 
+	"github.com/ohohleo/go-dsp/fft"
 	"github.com/xthexder/go-jack"
 )
 
 // Use global ports to avoid CGO issue
 var portsIn []*jack.Port
+var mutexIn *sync.Mutex
+var onInput func([]jack.AudioSample)
+
 var portsOut []*jack.Port
+var mutexOut *sync.Mutex
+var onOutput func([]jack.AudioSample)
 
 type Client struct {
 	client *jack.Client
@@ -21,7 +29,14 @@ type Client struct {
 
 	links map[string]string
 
-	channel chan struct{}
+	inChan       chan []float32
+	inFFTChan    chan []complex128
+	inFFTBuffer  []float64
+	outChan      chan []float32
+	outFFTChan   chan []complex128
+	outFFTBuffer []float64
+
+	stopChan chan struct{}
 }
 
 func New(name string, links map[string]string) (c *Client, err error) {
@@ -115,8 +130,8 @@ func (c *Client) Start() (err error) {
 	log.Println("START " + c.name)
 
 	// Wait until stop
-	c.channel = make(chan struct{})
-	<-c.channel
+	c.stopChan = make(chan struct{})
+	<-c.stopChan
 
 	return
 }
@@ -125,9 +140,27 @@ func (c *Client) Stop() (err error) {
 
 	log.Println("STOP " + c.name)
 
-	// Stop channel
-	if c.channel != nil {
-		close(c.channel)
+	// Stop channels
+	if c.inChan != nil {
+
+		mutexIn.Lock()
+		onInput = nil
+		mutexIn.Unlock()
+
+		close(c.inChan)
+	}
+
+	if c.outChan != nil {
+
+		mutexOut.Lock()
+		onOutput = nil
+		mutexOut.Unlock()
+
+		close(c.outChan)
+	}
+
+	if c.stopChan != nil {
+		close(c.stopChan)
 	}
 
 	// Establish disconnect
@@ -142,6 +175,65 @@ func (c *Client) Stop() (err error) {
 	return jack.Strerror(c.client.Close())
 }
 
+func (c *Client) GetInput() (chan []float32, chan []complex128) {
+
+	c.inChan = make(chan []float32)
+	c.inFFTChan = make(chan []complex128)
+	mutexIn = new(sync.Mutex)
+	onInput = c.onInput
+
+	return c.inChan, c.inFFTChan
+}
+
+func (c *Client) onInput(samples []jack.AudioSample) {
+
+	// Convert []AudioSample => []float32
+	values := *(*[]float32)(unsafe.Pointer(&samples))
+	go handleFFT(values, c.inFFTChan)
+	// Send raw values
+	select {
+	case c.inChan <- values:
+		return
+	}
+}
+
+func (c *Client) GetOutput() (chan []float32, chan []complex128) {
+
+	c.outChan = make(chan []float32)
+	c.outFFTChan = make(chan []complex128)
+	mutexOut = new(sync.Mutex)
+	onOutput = c.onOutput
+
+	return c.outChan, c.outFFTChan
+}
+
+func (c *Client) onOutput(samples []jack.AudioSample) {
+
+	// Convert []AudioSample => []float32
+	values := *(*[]float32)(unsafe.Pointer(&samples))
+	go handleFFT(values, c.outFFTChan)
+	// Send raw values
+	select {
+	case c.outChan <- values:
+		return
+	}
+}
+
+func handleFFT(values []float32, fftChan chan []complex128) {
+
+	// Convert into 64 bits
+	inputs := make([]float64, len(values))
+	for idx, value := range values {
+		inputs[idx] = float64(value)
+	}
+
+	// Calculate FFT
+	select {
+	case fftChan <- fft.FFTReal(inputs):
+		return
+	}
+}
+
 func shutdown() {
 	fmt.Println("Shutting down")
 }
@@ -153,12 +245,24 @@ func onProcess(framesNb uint32) int {
 		// Get samples input
 		samplesIn := in.GetBuffer(framesNb)
 
+		if onInput != nil {
+			mutexIn.Lock()
+			onInput(samplesIn)
+			mutexIn.Unlock()
+		}
+
 		// Get samples output
 		samplesOut := portsOut[portIdx].GetBuffer(framesNb)
 
 		// Copy input into output
 		for idx, sample := range samplesIn {
 			samplesOut[idx] = sample
+		}
+
+		if onOutput != nil {
+			mutexOut.Lock()
+			onOutput(samplesOut)
+			mutexOut.Unlock()
 		}
 	}
 
